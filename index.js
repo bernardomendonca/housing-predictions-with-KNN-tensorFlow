@@ -2,12 +2,24 @@ const tf = require("@tensorflow/tfjs");
 const loadCSV = require("./load-csv");
 
 function knn(features, labels, predictionPoint, k) {
+  const { mean, variance } = tf.moments(features, 0);
+
+  // standardizing the features by doing:
+  // (Value - Average) / StandardDeviation
+  // StandardDeviation is the square root of variance
+  const scaledPrediction = predictionPoint.sub(mean).div(variance.pow(0.5));
+
   return (
     features
-      .sub(predictionPoint)
+      // standardization step:
+      .sub(mean)
+      .div(variance.pow(0.5))
+      // distance calculation:
+      .sub(scaledPrediction)
       .pow(2)
       .sum(1)
       .pow(0.5)
+      // running the KNN algorithm:
       .expandDims(1)
       .concat(labels, 1)
       .unstack()
@@ -25,7 +37,14 @@ let { features, labels, testFeatures, testLabels } = loadCSV(
     //setting up how many records in our Test set:
     splitTest: 10,
     //which columns we'll analyse first:
-    dataColumns: ["lat", "long"],
+    dataColumns: [
+      "lat",
+      "long",
+      "sqft_lot",
+      "sqft_living",
+      "bedrooms",
+      "bathrooms",
+    ],
     // what we want to predict:
     labelColumns: ["price"],
   }
@@ -34,7 +53,11 @@ let { features, labels, testFeatures, testLabels } = loadCSV(
 features = tf.tensor(features);
 labels = tf.tensor(labels);
 
-// k valu of 10:
-const result = knn(features, labels, tf.tensor(testFeatures[0]), 10);
+testFeatures.forEach((testpoint, i) => {
+  // k value of 10:
+  const result = knn(features, labels, tf.tensor(testpoint), 10);
+  const err = (100 * (testLabels[i][0] - result)) / testLabels[i][0];
 
-console.log("Guess ", result, testLabels[0][0]);
+  console.log("Guess ", result, testLabels[i][0]);
+  console.log("error", err, "%");
+});
